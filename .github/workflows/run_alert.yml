@@ -2,8 +2,10 @@ name: Nurse Duty Alert Robot
 
 on:
   schedule:
-    - cron: '0 11 * * *'
-  workflow_dispatch:
+    - cron: '0 9 * * *'
+  workflow_dispatch: # 수동 버튼
+  repository_dispatch: # <--- 💡 구글 시트 리모컨 신호를 받기 위해 추가
+    types: [manual_trigger]
 
 jobs:
   run-bot:
