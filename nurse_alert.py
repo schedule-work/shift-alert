@@ -18,17 +18,14 @@ def connect_sheet():
     client = gspread.authorize(creds)
     return client.open_by_key("1tNobsqOTDzIKwAcF0VfUanRTSZCArqIF63n5AxKfDbc").worksheet("대체간호사 근무표")
 
-# [2] ntfy 발송 함수 (아이콘 제거 버전)
+# [2] ntfy 발송 함수 (아이콘 제거)
 def send_ntfy(topic, message, title):
-    # 공백만 제거한 정확한 토픽 경로 사용
     url = f"https://ntfy.sh/{topic.strip()}"
-    
     headers = {
         "Title": title.encode('utf-8'),
         "Priority": "high"
-        # 💡 "Tags" 항목을 삭제하여 병원/벨 아이콘이 나오지 않게 설정했습니다.
+        # Tags를 넣지 않아 아이콘을 제거했습니다.
     }
-    
     try:
         response = requests.post(url, data=message.encode('utf-8'), headers=headers)
         return response.status_code == 200
@@ -66,14 +63,15 @@ def main():
 
         all_data = sheet.get_all_values()
         nurse_map = {}
+        summary_list = [] # 💡 총괄 리포트를 담을 바구니 추가
         skip_list = ["ba", "ca", "pa", "ha", "sa", "off", "-", "", "/", " "]
 
         for row in all_data[1:]:
             if len(row) < col_idx: continue
             
-            sid = str(row[1]).strip()    # B열: 사번
-            name = str(row[2]).strip()   # C열: 성함
-            kind = str(row[4]).strip()   # E열: 구분
+            sid = str(row[1]).strip()
+            name = str(row[2]).strip()
+            kind = str(row[4]).strip()
             duty_val = str(row[col_idx-1]).strip()
 
             if not sid or sid == "사번" or "프리셉터" in kind: continue
@@ -93,25 +91,31 @@ def main():
         date_str = tomorrow.strftime("%m/%d") + "(" + ["월","화","수","목","금","토","일"][tomorrow.weekday()] + ")"
         
         for sid, n in nurse_map.items():
-            # 개인 채널: kugr_dns_사번
             p_topic = f"kugr_dns_{sid.upper()}"
             
             for mode in ["alt", "sup"]:
                 if n[mode]:
                     type_kr = "대체" if mode == "alt" else "지원"
-                    # 병동 채널: kugr_dns_병동명
                     ward_topic = f"kugr_dns_{n[mode]}"
                     
-                    # 💡 본문에서도 아이콘 느낌이 나는 수식어를 배제하고 담백하게 구성했습니다.
                     msg = f"{n['name']} 선생님, {date_str} [{n['duty']}] {n[mode]} {type_kr} 근무입니다."
                     title_str = f"[교대제 {type_kr}근무 알림]"
                     
-                    # 발송 실행
+                    # 개별 발송
                     send_ntfy(ward_topic, msg, title_str)
                     send_ntfy(p_topic, msg, title_str)
                     
+                    # 💡 총괄 리포트 내용 추가
+                    summary_list.append(f"- {n['name']} ({n[mode]} {type_kr})")
+                    
                     print(f"✅ {n['name']} -> {ward_topic} & {p_topic} 발송 완료")
                     time.sleep(4)
+
+        # 💡 [총괄 리포트 발송] 반복문이 다 끝난 후 마지막에 실행
+        if summary_list:
+            summary_msg = f"{date_str} 교대제 근무 현황\n\n" + "\n".join(summary_list)
+            send_ntfy("kugr_dns", summary_msg, "[교대제 근무 총괄 현황]")
+            print(f"📢 총괄 현황 발송 완료 (kugr_dns)")
 
     except Exception as e:
         print(f"❌ 실행 중 오류 발생: {e}")
