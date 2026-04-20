@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timedelta
 from oauth2client.service_account import ServiceAccountCredentials
 
-# [1] 구글 시트 연결 (시트 ID 방식)
+# [1] 구글 시트 연결
 def connect_sheet():
     creds_json = os.environ.get('GOOGLE_CREDENTIALS')
     if creds_json:
@@ -16,14 +16,13 @@ def connect_sheet():
         creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json')
     
     client = gspread.authorize(creds)
-    # 알려주신 시트 ID 사용
     return client.open_by_key("1tNobsqOTDzIKwAcF0VfUanRTSZCArqIF63n5AxKfDbc").worksheet("대체간호사 근무표")
 
-# [2] ntfy 발송 함수
+# [2] ntfy 발송 함수 (대소문자/특수문자 가공 로직 수정)
 def send_ntfy(topic, message, title):
-    # 특수문자 제거 후 대문자 고정
-    topic = "".join(filter(str.isalnum, topic)).upper()
-    url = f"https://ntfy.sh/{topic}"
+    # 💡 중요: 여기서 .upper()를 하지 않고 넘겨받은 topic 그대로 사용합니다.
+    # 단, URL에 들어갈 수 없는 공백만 제거합니다.
+    url = f"https://ntfy.sh/{topic.strip()}"
     
     headers = {
         "Title": title.encode('utf-8'),
@@ -38,18 +37,15 @@ def send_ntfy(topic, message, title):
         print(f"❌ 발송 실패 ({topic}): {e}")
         return False
 
-# [3] 내일 날짜의 열 인덱스 자동 계산 (F열=6, 월 변경 시 +2)
+# [3] 내일 날짜 열 인덱스 계산
 def get_target_column(target_date):
-    base_date = datetime(2026, 3, 1) # 기준일: 2026년 3월 1일
-    base_col = 6  # F열
-    
+    base_date = datetime(2026, 3, 1)
+    base_col = 6
     current = base_date
     col_idx = base_col
-    
     while current < target_date:
         prev_month = current.month
         current += timedelta(days=1)
-        # 월이 바뀌면 공백열(+1) + 1일(+1) = 2칸 이동
         if current.month != prev_month:
             col_idx += 2 
         else:
@@ -63,7 +59,6 @@ def main():
         sheet = connect_sheet()
         print("✅ 시트 연결 성공!")
 
-        # 내일 날짜 계산 (한국 시간 기준)
         tomorrow = datetime.now() + timedelta(days=1)
         tomorrow = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
         
@@ -71,21 +66,18 @@ def main():
         print(f"2. {tomorrow.date()} 데이터를 {col_idx}번째 열에서 읽습니다.")
 
         all_data = sheet.get_all_values()
-        
         nurse_map = {}
         skip_list = ["ba", "ca", "pa", "ha", "sa", "off", "-", "", "/", " "]
 
-        # 데이터 분석
-        for row in all_data[1:]: # 헤더 제외
+        for row in all_data[1:]:
             if len(row) < col_idx: continue
             
             sid = str(row[1]).strip()    # B열: 사번
             name = str(row[2]).strip()   # C열: 성함
             kind = str(row[4]).strip()   # E열: 구분
-            duty_val = str(row[col_idx-1]).strip() # 내일 근무
+            duty_val = str(row[col_idx-1]).strip()
 
-            if not sid or sid == "사번" or "프리셉터" in kind:
-                continue
+            if not sid or sid == "사번" or "프리셉터" in kind: continue
 
             if sid not in nurse_map:
                 nurse_map[sid] = {"name": name, "duty": "근무", "alt": "", "sup": ""}
@@ -95,31 +87,31 @@ def main():
                 if kind == "":
                     nurse_map[sid]["duty"] = duty_val
                 elif "대체" in kind:
+                    # 💡 병동 이름만 대문자로 변환 (예: 65W)
                     nurse_map[sid]["alt"] = duty_val.upper()
                 elif "지원" in kind:
                     nurse_map[sid]["sup"] = duty_val.upper()
 
         date_str = tomorrow.strftime("%m/%d") + "(" + ["월","화","수","목","금","토","일"][tomorrow.weekday()] + ")"
         
-        # 발송 시작
         for sid, n in nurse_map.items():
-            # 💡 [요청반영] kugr_dns_사번 형식 (p_ 제거)
-            p_topic = f"kugr_dns_{sid}"
+            # 💡 개인 채널: kugr_dns_ + 대문자 사번
+            p_topic = f"kugr_dns_{sid.upper()}"
             
             for mode in ["alt", "sup"]:
                 if n[mode]:
                     type_kr = "대체" if mode == "alt" else "지원"
+                    # 💡 병동 채널: kugr_dns_ + 대문자 병동명 (예: kugr_dns_65W)
                     ward_topic = f"kugr_dns_{n[mode]}"
                     
                     msg = f"꿈마스터 {n['name']} 선생님, {date_str} [{n['duty']}] {n[mode]} {type_kr} 근무입니다."
                     title_str = f"[교대제 {type_kr}근무 알림]"
                     
-                    # 1. 병동 채널 발송
+                    # 🚀 발송 실행 (병동 한 번, 개인 한 번)
                     send_ntfy(ward_topic, msg, title_str)
-                    # 2. 개인 채널 발송
                     send_ntfy(p_topic, msg, title_str)
                     
-                    print(f"✅ {n['name']} 선생님 ({n[mode]}) 발송 완료")
+                    print(f"✅ {n['name']} -> {ward_topic} & {p_topic} 발송 완료")
                     time.sleep(4)
 
     except Exception as e:
