@@ -79,24 +79,23 @@ def main():
 
         date_str = tomorrow.strftime("%m/%d") + "(" + ["월","화","수","목","금","토","일"][tomorrow.weekday()] + ")"
         
-        for sid, n in nurse_map.items():
-        # 개인 토픽: kugr_dns_p_ + 대문자 사번
-        p_topic = f"kugr_dns_p_{sid.upper()}"
+        # 82라인 근처: 발송 실행 반복문
+    for sid, n in nurse_map.items():
+        # 💡 [수정] p_를 제거하고 kugr_dns_사번 형식으로 토픽 생성
+        # f-string 안에는 { } 중괄호를 써야 변수가 인식됩니다.
+        p_topic = f"kugr_dns_{sid.upper()}"
         
         for mode in ["alt", "sup"]:
             if n[mode]:
-                # mode가 'alt'면 '대체', 아니면 '지원'
                 type_kr = "대체" if mode == "alt" else "지원"
                 ward_topic = f"kugr_dns_{n[mode]}"
                 
                 msg = f"꿈마스터 {n['name']} 선생님, {date_str} [{n['duty']}] {n[mode]} {type_kr} 근무입니다."
-                
-                # 💡 이 부분이 제목입니다! 대괄호를 넣어서 수정하세요.
                 title_str = f"[교대제 {type_kr}근무 알림]"
                 
-                # 1. 병동 채널 발송
+                # 1. 병동 채널 발송 (예: kugr_dns_65W)
                 send_ntfy(ward_topic, msg, title_str)
-                # 2. 개인 채널 발송
+                # 2. 개인 채널 발송 (예: kugr_dns_20241234)
                 send_ntfy(p_topic, msg, title_str)
                 
                 print(f"✅ {n['name']} 선생님 ({n[mode]}) 발송 완료")
