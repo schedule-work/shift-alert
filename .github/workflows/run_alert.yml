@@ -9,12 +9,14 @@ on:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    # 💡 깃허브가 요구한 '강제 Node 24 사용' 설정 추가
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
     steps:
-      # v3에서 v4로 업데이트 (Node 24 지원)
       - uses: actions/checkout@v4
       
       - name: Set up Python
-        # v4에서 v5로 업데이트 (Node 24 지원)
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
