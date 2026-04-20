@@ -6,8 +6,8 @@ import json
 from datetime import datetime, timedelta
 from oauth2client.service_account import ServiceAccountCredentials
 
+# [1] 구글 시트 연결 (시트 ID 방식 적용)
 def connect_sheet():
-    # 깃허브 실행 시 환경변수에서, 로컬 테스트 시 파일에서 인증 정보 로드
     creds_json = os.environ.get('GOOGLE_CREDENTIALS')
     if creds_json:
         creds_dict = json.loads(creds_json)
@@ -16,8 +16,10 @@ def connect_sheet():
         creds = ServiceAccountCredentials.from_json_keyfile_name('credentials.json')
     
     client = gspread.authorize(creds)
-    # 스프레드시트 이름 정확히 입력
-    return client.open("대체간호사 근무표").worksheet("대체간호사 근무표")
+    
+    # 주소창에서 추출한 시트 ID를 직접 입력합니다.
+    # .worksheet("...") 안에는 시트 하단 탭에 적힌 이름을 넣으세요. (예: "대체간호사 근무표" 또는 "Sheet1")
+    return client.open_by_key("1tNobsqOTDzIKwAcF0VfUanRTSZCArqIF63n5AxKfDbc").worksheet("대체간호사 근무표")
 
 def get_target_column(target_date):
     """F열(6)이 2026-03-01 기준일 때, 월 변경 공백(+2) 계산"""
