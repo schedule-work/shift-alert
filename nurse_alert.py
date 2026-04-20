@@ -18,16 +18,15 @@ def connect_sheet():
     client = gspread.authorize(creds)
     return client.open_by_key("1tNobsqOTDzIKwAcF0VfUanRTSZCArqIF63n5AxKfDbc").worksheet("대체간호사 근무표")
 
-# [2] ntfy 발송 함수 (대소문자/특수문자 가공 로직 수정)
+# [2] ntfy 발송 함수 (아이콘 제거 버전)
 def send_ntfy(topic, message, title):
-    # 💡 중요: 여기서 .upper()를 하지 않고 넘겨받은 topic 그대로 사용합니다.
-    # 단, URL에 들어갈 수 없는 공백만 제거합니다.
+    # 공백만 제거한 정확한 토픽 경로 사용
     url = f"https://ntfy.sh/{topic.strip()}"
     
     headers = {
         "Title": title.encode('utf-8'),
-        "Priority": "high",
-        "Tags": "hospital,bell"
+        "Priority": "high"
+        # 💡 "Tags" 항목을 삭제하여 병원/벨 아이콘이 나오지 않게 설정했습니다.
     }
     
     try:
@@ -87,7 +86,6 @@ def main():
                 if kind == "":
                     nurse_map[sid]["duty"] = duty_val
                 elif "대체" in kind:
-                    # 💡 병동 이름만 대문자로 변환 (예: 65W)
                     nurse_map[sid]["alt"] = duty_val.upper()
                 elif "지원" in kind:
                     nurse_map[sid]["sup"] = duty_val.upper()
@@ -95,19 +93,20 @@ def main():
         date_str = tomorrow.strftime("%m/%d") + "(" + ["월","화","수","목","금","토","일"][tomorrow.weekday()] + ")"
         
         for sid, n in nurse_map.items():
-            # 💡 개인 채널: kugr_dns_ + 대문자 사번
+            # 개인 채널: kugr_dns_사번
             p_topic = f"kugr_dns_{sid.upper()}"
             
             for mode in ["alt", "sup"]:
                 if n[mode]:
                     type_kr = "대체" if mode == "alt" else "지원"
-                    # 💡 병동 채널: kugr_dns_ + 대문자 병동명 (예: kugr_dns_65W)
+                    # 병동 채널: kugr_dns_병동명
                     ward_topic = f"kugr_dns_{n[mode]}"
                     
-                    msg = f"꿈마스터 {n['name']} 선생님, {date_str} [{n['duty']}] {n[mode]} {type_kr} 근무입니다."
+                    # 💡 본문에서도 아이콘 느낌이 나는 수식어를 배제하고 담백하게 구성했습니다.
+                    msg = f"{n['name']} 선생님, {date_str} [{n['duty']}] {n[mode]} {type_kr} 근무입니다."
                     title_str = f"[교대제 {type_kr}근무 알림]"
                     
-                    # 🚀 발송 실행 (병동 한 번, 개인 한 번)
+                    # 발송 실행
                     send_ntfy(ward_topic, msg, title_str)
                     send_ntfy(p_topic, msg, title_str)
                     
