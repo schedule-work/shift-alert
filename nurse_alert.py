@@ -52,11 +52,15 @@ def get_dynamic_column_index(target_date):
 # [4] 메인 로직
 def main():
     try:
+        print("1. 구글 시트 연결 시도...")
         sheet = connect_sheet()
+        
         tomorrow = datetime.now() + timedelta(days=1)
         tomorrow = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
         
-        col_idx = get_dynamic_column_index(tomorrow)
+        col_idx = get_target_column(tomorrow)
+        print(f"2. {tomorrow.date()} 데이터를 {col_idx}번째 열에서 읽습니다.")
+
         all_data = sheet.get_all_values()
         
         nurse_map = {}
@@ -69,40 +73,46 @@ def main():
             duty_val = str(row[col_idx-1]).strip()
 
             if not sid or sid == "사번" or "프리셉터" in kind: continue
+            
             if sid not in nurse_map:
                 nurse_map[sid] = {"name": name, "duty": "근무", "alt": "", "sup": ""}
 
             if duty_val.lower() not in skip_list:
-                if kind == "": nurse_map[sid]["duty"] = duty_val
-                elif "대체" in kind: nurse_map[sid]["alt"] = duty_val.upper() # 병동명 대문자화 (65W)
-                elif "지원" in kind: nurse_map[sid]["sup"] = duty_val.upper()
+                if kind == "": 
+                    nurse_map[sid]["duty"] = duty_val
+                elif "대체" in kind: 
+                    nurse_map[sid]["alt"] = duty_val.upper()
+                elif "지원" in kind: 
+                    nurse_map[sid]["sup"] = duty_val.upper()
 
         date_str = tomorrow.strftime("%m/%d") + "(" + ["월","화","수","목","금","토","일"][tomorrow.weekday()] + ")"
         
-        # 82라인 근처: 발송 실행 반복문
-    for sid, n in nurse_map.items():
-        # 💡 [수정] p_를 제거하고 kugr_dns_사번 형식으로 토픽 생성
-        # f-string 안에는 { } 중괄호를 써야 변수가 인식됩니다.
-        p_topic = f"kugr_dns_{sid.upper()}"
-        
-        for mode in ["alt", "sup"]:
-            if n[mode]:
-                type_kr = "대체" if mode == "alt" else "지원"
-                ward_topic = f"kugr_dns_{n[mode]}"
-                
-                msg = f"꿈마스터 {n['name']} 선생님, {date_str} [{n['duty']}] {n[mode]} {type_kr} 근무입니다."
-                title_str = f"[교대제 {type_kr}근무 알림]"
-                
-                # 1. 병동 채널 발송 (예: kugr_dns_65W)
-                send_ntfy(ward_topic, msg, title_str)
-                # 2. 개인 채널 발송 (예: kugr_dns_20241234)
-                send_ntfy(p_topic, msg, title_str)
-                
-                print(f"✅ {n['name']} 선생님 ({n[mode]}) 발송 완료")
-                time.sleep(4)
-                
+        # --- 발송 루프 시작 ---
+        for sid, n in nurse_map.items():
+            # 💡 [요청반영] p_ 없이 kugr_dns_사번 형식으로 보냅니다.
+            p_topic = f"kugr_dns_{sid.upper()}"
+            
+            for mode in ["alt", "sup"]:
+                if n[mode]:
+                    type_kr = "대체" if mode == "alt" else "지원"
+                    ward_topic = f"kugr_dns_{n[mode]}"
+                    
+                    msg = f"꿈마스터 {n['name']} 선생님, {date_str} [{n['duty']}] {n[mode]} {type_kr} 근무입니다."
+                    title_str = f"[교대제 {type_kr}근무 알림]"
+                    
+                    # 1. 병동 채널 발송
+                    send_ntfy(ward_topic, msg, title_str)
+                    # 2. 개인 채널 발송 (kugr_dns_사번)
+                    send_ntfy(p_topic, msg, title_str)
+                    
+                    print(f"✅ {n['name']} 선생님 ({n[mode]}) 발송 완료")
+                    time.sleep(4)
+        # --- 발송 루프 끝 ---
+
     except Exception as e:
-        print(f"❌ 오류 발생: {e}")
+        # 이 부분이 꼭 있어야 SyntaxError가 안 납니다!
+        print(f"❌ 실행 중 오류 발생: {e}")
+        raise e
 
 if __name__ == "__main__":
     main()
