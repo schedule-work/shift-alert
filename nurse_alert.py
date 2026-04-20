@@ -80,26 +80,28 @@ def main():
         date_str = tomorrow.strftime("%m/%d") + "(" + ["월","화","수","목","금","토","일"][tomorrow.weekday()] + ")"
         
         for sid, n in nurse_map.items():
-            # 💡 개인 토픽: kugr_dns_ + 대문자 사번
-            p_topic = f"kugr_dns_{sid.upper()}"
-            
-            # 대체/지원 근무 발송 로직
-            for mode in ["alt", "sup"]:
-                if n[mode]:
-                    type_kr = "대체" if mode == "alt" else "지원"
-                    # 💡 병동 토픽: kugr_dns_ + 대문자 병동명 (예: kugr_dns_65W)
-                    ward_topic = f"kugr_dns_{n[mode]}"
-                    
-                    msg = f"꿈마스터 {n['name']} 선생님, {date_str} [{n['duty']}] {n[mode]} {type_kr} 근무입니다."
-                    
-                    # 1. 병동 채널로 발송
-                    send_ntfy(ward_topic, msg, f"교대제 {type_kr}근무 알림")
-                    # 2. 개인 채널로 발송
-                    send_ntfy(p_topic, msg, f"교대제 {type_kr}근무 알림")
-                    
-                    print(f"✅ {n['name']} 선생님 ({n[mode]}) 발송 완료")
-                    time.sleep(4) # 4초 텀 유지
-
+        # 개인 토픽: kugr_dns_p_ + 대문자 사번
+        p_topic = f"kugr_dns_p_{sid.upper()}"
+        
+        for mode in ["alt", "sup"]:
+            if n[mode]:
+                # mode가 'alt'면 '대체', 아니면 '지원'
+                type_kr = "대체" if mode == "alt" else "지원"
+                ward_topic = f"kugr_dns_{n[mode]}"
+                
+                msg = f"꿈마스터 {n['name']} 선생님, {date_str} [{n['duty']}] {n[mode]} {type_kr} 근무입니다."
+                
+                # 💡 이 부분이 제목입니다! 대괄호를 넣어서 수정하세요.
+                title_str = f"[교대제 {type_kr}근무 알림]"
+                
+                # 1. 병동 채널 발송
+                send_ntfy(ward_topic, msg, title_str)
+                # 2. 개인 채널 발송
+                send_ntfy(p_topic, msg, title_str)
+                
+                print(f"✅ {n['name']} 선생님 ({n[mode]}) 발송 완료")
+                time.sleep(4)
+                
     except Exception as e:
         print(f"❌ 오류 발생: {e}")
 
