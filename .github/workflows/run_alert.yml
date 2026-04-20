@@ -10,13 +10,18 @@ jobs:
   run-bot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      # v3에서 v4로 업데이트 (Node 24 지원)
+      - uses: actions/checkout@v4
+      
       - name: Set up Python
-        uses: actions/setup-python@v4
+        # v4에서 v5로 업데이트 (Node 24 지원)
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
+          
       - name: Install dependencies
         run: pip install -r requirements.txt
+        
       - name: Run Alert Script
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
